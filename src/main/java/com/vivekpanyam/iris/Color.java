@@ -24,8 +24,8 @@ import java.util.Locale;
  * Colors are represented as packed ints, made up of 4 bytes: alpha, red,
  * green, blue. The values are unpremultiplied, meaning any transparency is
  * stored solely in the alpha component, and not in the color components. The
- * components are stored as follows (alpha << 24) | (red << 16) |
- * (green << 8) | blue. Each component ranges between 0..255 with 0
+ * components are stored as follows (alpha &lt;&lt; 24) | (red &lt;&lt; 16) |
+ * (green &lt;&lt; 8) | blue. Each component ranges between 0..255 with 0
  * meaning no contribution for that component, and 255 meaning 100%
  * contribution. Thus opaque-black would be 0xFF000000 (100% opaque but
  * no contributions from red, green, or blue), and opaque-white would be
@@ -47,7 +47,7 @@ public class Color {
 
     /**
      * Return the alpha component of a color int. This is the same as saying
-     * color >>> 24
+     * color &gt;&gt;&gt; 24
      */
     public static int alpha(int color) {
         return color >>> 24;
@@ -55,7 +55,7 @@ public class Color {
 
     /**
      * Return the red component of a color int. This is the same as saying
-     * (color >> 16) & 0xFF
+     * (color &gt;&gt; 16) &amp; 0xFF
      */
     public static int red(int color) {
         return (color >> 16) & 0xFF;
@@ -63,7 +63,7 @@ public class Color {
 
     /**
      * Return the green component of a color int. This is the same as saying
-     * (color >> 8) & 0xFF
+     * (color &gt;&gt; 8) &amp; 0xFF
      */
     public static int green(int color) {
         return (color >> 8) & 0xFF;
@@ -71,7 +71,7 @@ public class Color {
 
     /**
      * Return the blue component of a color int. This is the same as saying
-     * color & 0xFF
+     * color &amp; 0xFF
      */
     public static int blue(int color) {
         return color & 0xFF;
@@ -107,10 +107,10 @@ public class Color {
 
     /**
      * Returns the hue component of a color int.
+     * 
+     * <b>Pending API council</b>
      *
      * @return A value between 0.0f and 1.0f
-     *
-     * @hide Pending API council
      */
     public static float hue(int color) {
         int r = (color >> 16) & 0xFF;
@@ -149,10 +149,10 @@ public class Color {
 
     /**
      * Returns the saturation component of a color int.
+     * 
+     * <b>Pending API council</b>
      *
      * @return A value between 0.0f and 1.0f
-     *
-     * @hide Pending API council
      */
     public static float saturation(int color) {
         int r = (color >> 16) & 0xFF;
@@ -177,9 +177,9 @@ public class Color {
     /**
      * Returns the brightness component of a color int.
      *
-     * @return A value between 0.0f and 1.0f
+     * <b>Pending API council</b>
      *
-     * @hide Pending API council
+     * @return A value between 0.0f and 1.0f
      */
     public static float brightness(int color) {
         int r = (color >> 16) & 0xFF;
