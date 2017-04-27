@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.vivekpanyam.iris;
 
 import java.util.ArrayList;
@@ -555,7 +556,7 @@ public final class Palette {
 
         /**
          * Set the maximum number of colors to use in the quantization step when using a
-         * {@link android.graphics.Bitmap} as the source.
+         * {@link Bitmap} as the source.
          * <p>
          * Good values for depend on the source image type. For landscapes, good values are in
          * the range 10-16. For images which are largely made up of people's faces then this
@@ -567,7 +568,7 @@ public final class Palette {
         }
 
         /**
-         * Set the resize value when using a {@link android.graphics.Bitmap} as the source.
+         * Set the resize value when using a {@link Bitmap} as the source.
          * If the bitmap's largest dimension is greater than the value specified, then the bitmap
          * will be resized so that it's largest dimension matches {@code maxDimension}. If the
          * bitmap is smaller or equal, the original is used as-is.
@@ -576,7 +577,7 @@ public final class Palette {
          * abnormal aspect ratios more gracefully.
          *
          * @param maxDimension the number of pixels that the max dimension should be scaled down to,
-         *                     or any value <= 0 to disable resizing.
+         *                     or any value &lt;= 0 to disable resizing.
          */
         @Deprecated
         public Builder resizeBitmapSize(final int maxDimension) {
@@ -586,7 +587,7 @@ public final class Palette {
         }
 
         /**
-         * Set the resize value when using a {@link android.graphics.Bitmap} as the source.
+         * Set the resize value when using a {@link Bitmap} as the source.
          * If the bitmap's area is greater than the value specified, then the bitmap
          * will be resized so that it's area matches {@code area}. If the
          * bitmap is smaller or equal, the original is used as-is.
@@ -596,7 +597,7 @@ public final class Palette {
          * more detail is lost in the resulting image and thus less precision for color selection.
          *
          * @param area the number of pixels that the intermediary scaled down Bitmap should cover,
-         *             or any value <= 0 to disable resizing.
+         *             or any value &lt;= 0 to disable resizing.
          */
         public Builder resizeBitmapArea(final int area) {
             mResizeArea = area;

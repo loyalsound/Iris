@@ -116,7 +116,6 @@ public class SparseBooleanArray implements Cloneable {
         }
     }
 
-    /** @hide */
     public void removeAt(int index) {
         System.arraycopy(mKeys, index + 1, mKeys, index, mSize - (index + 1));
         System.arraycopy(mValues, index + 1, mValues, index, mSize - (index + 1));
@@ -179,12 +178,10 @@ public class SparseBooleanArray implements Cloneable {
         return mValues[index];
     }
 
-    /** @hide */
     public void setValueAt(int index, boolean value) {
         mValues[index] = value;
     }
 
-    /** @hide */
     public void setKeyAt(int index, int key) {
         mKeys[index] = key;
     }
