@@ -16,115 +16,212 @@
 package com.vivekpanyam.iris;
 
 final class ColorUtils {
-    private static final int MIN_ALPHA_SEARCH_MAX_ITERATIONS = 10;
-    private static final int MIN_ALPHA_SEARCH_PRECISION = 10;
-    private ColorUtils() {}
+	
+	private static final int MIN_ALPHA_SEARCH_MAX_ITERATIONS = 10;
+    private static final int MIN_ALPHA_SEARCH_PRECISION = 1;
+    
+    private static final ThreadLocal<double[]> TEMP_ARRAY = new ThreadLocal<double[]>();
+    
     /**
      * Composite two potentially translucent colors over each other and returns the result.
      */
-    private static int compositeColors(int fg, int bg) {
-        final float alpha1 = Color.alpha(fg) / 255f;
-        final float alpha2 = Color.alpha(bg) / 255f;
-        float a = (alpha1 + alpha2) * (1f - alpha1);
-        float r = (Color.red(fg) * alpha1) + (Color.red(bg) * alpha2 * (1f - alpha1));
-        float g = (Color.green(fg) * alpha1) + (Color.green(bg) * alpha2 * (1f - alpha1));
-        float b = (Color.blue(fg) * alpha1) + (Color.blue(bg) * alpha2 * (1f - alpha1));
-        return Color.argb((int) a, (int) r, (int) g, (int) b);
+    public static int compositeColors(int foreground, int background) {
+        int bgAlpha = Color.alpha(background);
+        int fgAlpha = Color.alpha(foreground);
+        int a = compositeAlpha(fgAlpha, bgAlpha);
+
+        int r = compositeComponent(Color.red(foreground), fgAlpha,
+                Color.red(background), bgAlpha, a);
+        int g = compositeComponent(Color.green(foreground), fgAlpha,
+                Color.green(background), bgAlpha, a);
+        int b = compositeComponent(Color.blue(foreground), fgAlpha,
+                Color.blue(background), bgAlpha, a);
+
+        return Color.argb(a, r, g, b);
     }
-    /**
-     * Returns the luminance of a color.
-     *
-     * Formula defined here: http://www.w3.org/TR/2008/REC-WCAG20-20081211/#relativeluminancedef
-     */
-    private static double calculateLuminance(int color) {
-        double red = Color.red(color) / 255d;
-        red = red < 0.03928 ? red / 12.92 : Math.pow((red + 0.055) / 1.055, 2.4);
-        double green = Color.green(color) / 255d;
-        green = green < 0.03928 ? green / 12.92 : Math.pow((green + 0.055) / 1.055, 2.4);
-        double blue = Color.blue(color) / 255d;
-        blue = blue < 0.03928 ? blue / 12.92 : Math.pow((blue + 0.055) / 1.055, 2.4);
-        return (0.2126 * red) + (0.7152 * green) + (0.0722 * blue);
+
+    private static int compositeAlpha(int foregroundAlpha, int backgroundAlpha) {
+        return 0xFF - (((0xFF - backgroundAlpha) * (0xFF - foregroundAlpha)) / 0xFF);
     }
+
+    private static int compositeComponent(int fgC, int fgA, int bgC, int bgA, int a) {
+        if (a == 0) return 0;
+        return ((0xFF * fgC * fgA) + (bgC * bgA * (0xFF - fgA))) / (a * 0xFF);
+    }
+
     /**
-     * Returns the contrast ratio between two colors.
-     *
-     * Formula defined here: http://www.w3.org/TR/2008/REC-WCAG20-20081211/#contrast-ratiodef
+     * Returns the luminance of a color as a float between {@code 0.0} and {@code 1.0}.
+     * <p>Defined as the Y component in the XYZ representation of {@code color}.</p>
      */
-    private static double calculateContrast(int foreground, int background) {
+    public static double calculateLuminance(int color) {
+        final double[] result = getTempDouble3Array();
+        colorToXYZ(color, result);
+        // Luminance is the Y component
+        return result[1] / 100;
+    }
+
+    /**
+     * Set the alpha component of {@code color} to be {@code alpha}.
+     */
+    public static int setAlphaComponent(int color, int alpha) {
+        if (alpha < 0 || alpha > 255) {
+            throw new IllegalArgumentException("alpha must be between 0 and 255.");
+        }
+        return (color & 0x00ffffff) | (alpha << 24);
+    }
+    
+    /**
+     * Calculates the minimum alpha value which can be applied to {@code foreground} so that would
+     * have a contrast value of at least {@code minContrastRatio} when compared to
+     * {@code background}.
+     *
+     * @param foreground       the foreground color
+     * @param background       the opaque background color
+     * @param minContrastRatio the minimum contrast ratio
+     * @return the alpha value in the range 0-255, or -1 if no value could be calculated
+     */
+    public static int calculateMinimumAlpha(int foreground, int background,
+            float minContrastRatio) {
         if (Color.alpha(background) != 255) {
-            throw new IllegalArgumentException("background can not be translucent");
+            throw new IllegalArgumentException("background can not be translucent: #"
+                    + Integer.toHexString(background));
         }
-        if (Color.alpha(foreground) < 255) {
-            // If the foreground is translucent, composite the foreground over the background
-            foreground = compositeColors(foreground, background);
-        }
-        final double luminance1 = calculateLuminance(foreground) + 0.05;
-        final double luminance2 = calculateLuminance(background) + 0.05;
-        // Now return the lighter luminance divided by the darker luminance
-        return Math.max(luminance1, luminance2) / Math.min(luminance1, luminance2);
-    }
-    /**
-     * Finds the minimum alpha value which can be applied to {@code foreground} so that is has a
-     * contrast value of at least {@code minContrastRatio} when compared to background.
-     *
-     * @return the alpha value in the range 0-255.
-     */
-    private static int findMinimumAlpha(int foreground, int background, double minContrastRatio) {
-        if (Color.alpha(background) != 255) {
-            throw new IllegalArgumentException("background can not be translucent");
-        }
+
         // First lets check that a fully opaque foreground has sufficient contrast
-        int testForeground = modifyAlpha(foreground, 255);
+        int testForeground = setAlphaComponent(foreground, 255);
         double testRatio = calculateContrast(testForeground, background);
         if (testRatio < minContrastRatio) {
             // Fully opaque foreground does not have sufficient contrast, return error
             return -1;
         }
+
         // Binary search to find a value with the minimum value which provides sufficient contrast
         int numIterations = 0;
         int minAlpha = 0;
         int maxAlpha = 255;
+
         while (numIterations <= MIN_ALPHA_SEARCH_MAX_ITERATIONS &&
                 (maxAlpha - minAlpha) > MIN_ALPHA_SEARCH_PRECISION) {
             final int testAlpha = (minAlpha + maxAlpha) / 2;
-            testForeground = modifyAlpha(foreground, testAlpha);
+
+            testForeground = setAlphaComponent(foreground, testAlpha);
             testRatio = calculateContrast(testForeground, background);
+
             if (testRatio < minContrastRatio) {
                 minAlpha = testAlpha;
             } else {
                 maxAlpha = testAlpha;
             }
+
             numIterations++;
         }
+
         // Conservatively return the max of the range of possible alphas, which is known to pass.
         return maxAlpha;
     }
-    static int getTextColorForBackground(int backgroundColor, float minContrastRatio) {
-        // First we will check white as most colors will be dark
-        final int whiteMinAlpha = ColorUtils
-                .findMinimumAlpha(Color.WHITE, backgroundColor, minContrastRatio);
-        if (whiteMinAlpha >= 0) {
-            return ColorUtils.modifyAlpha(Color.WHITE, whiteMinAlpha);
+
+    /**
+     * Returns the contrast ratio between {@code foreground} and {@code background}.
+     * {@code background} must be opaque.
+     * <p>
+     * Formula defined
+     * <a href="http://www.w3.org/TR/2008/REC-WCAG20-20081211/#contrast-ratiodef">here</a>.
+     */
+    public static double calculateContrast(int foreground, int background) {
+        if (Color.alpha(background) != 255) {
+            throw new IllegalArgumentException("background can not be translucent: #"
+                    + Integer.toHexString(background));
         }
-        // If we hit here then there is not an translucent white which provides enough contrast,
-        // so check black
-        final int blackMinAlpha = ColorUtils
-                .findMinimumAlpha(Color.BLACK, backgroundColor, minContrastRatio);
-        if (blackMinAlpha >= 0) {
-            return ColorUtils.modifyAlpha(Color.BLACK, blackMinAlpha);
+        if (Color.alpha(foreground) < 255) {
+            // If the foreground is translucent, composite the foreground over the background
+            foreground = compositeColors(foreground, background);
         }
-        // This should not happen!
-        return -1;
+
+        final double luminance1 = calculateLuminance(foreground) + 0.05;
+        final double luminance2 = calculateLuminance(background) + 0.05;
+
+        // Now return the lighter luminance divided by the darker luminance
+        return Math.max(luminance1, luminance2) / Math.min(luminance1, luminance2);
     }
-    static void RGBtoHSL(int r, int g, int b, float[] hsl) {
+
+    /**
+     * Convert the ARGB color to it's CIE XYZ representative components.
+     *
+     * <p>The resulting XYZ representation will use the D65 illuminant and the CIE
+     * 2° Standard Observer (1931).</p>
+     *
+     * <ul>
+     * <li>outXyz[0] is X [0 ...95.047)</li>
+     * <li>outXyz[1] is Y [0...100)</li>
+     * <li>outXyz[2] is Z [0...108.883)</li>
+     * </ul>
+     *
+     * @param color  the ARGB color to convert. The alpha component is ignored
+     * @param outXyz 3-element array which holds the resulting LAB components
+     */
+    public static void colorToXYZ(int color, double[] outXyz) {
+        RGBToXYZ(Color.red(color), Color.green(color), Color.blue(color), outXyz);
+    }
+
+    /**
+     * Convert RGB components to it's CIE XYZ representative components.
+     *
+     * <p>The resulting XYZ representation will use the D65 illuminant and the CIE
+     * 2° Standard Observer (1931).</p>
+     *
+     * <ul>
+     * <li>outXyz[0] is X [0 ...95.047)</li>
+     * <li>outXyz[1] is Y [0...100)</li>
+     * <li>outXyz[2] is Z [0...108.883)</li>
+     * </ul>
+     *
+     * @param r      red component value [0..255]
+     * @param g      green component value [0..255]
+     * @param b      blue component value [0..255]
+     * @param outXyz 3-element array which holds the resulting XYZ components
+     */
+    public static void RGBToXYZ(int r, int g, int b, double[] outXyz) {
+        if (outXyz.length != 3) {
+            throw new IllegalArgumentException("outXyz must have a length of 3.");
+        }
+
+        double sr = r / 255.0;
+        sr = sr < 0.04045 ? sr / 12.92 : Math.pow((sr + 0.055) / 1.055, 2.4);
+        double sg = g / 255.0;
+        sg = sg < 0.04045 ? sg / 12.92 : Math.pow((sg + 0.055) / 1.055, 2.4);
+        double sb = b / 255.0;
+        sb = sb < 0.04045 ? sb / 12.92 : Math.pow((sb + 0.055) / 1.055, 2.4);
+
+        outXyz[0] = 100 * (sr * 0.4124 + sg * 0.3576 + sb * 0.1805);
+        outXyz[1] = 100 * (sr * 0.2126 + sg * 0.7152 + sb * 0.0722);
+        outXyz[2] = 100 * (sr * 0.0193 + sg * 0.1192 + sb * 0.9505);
+    }
+
+    /**
+     * Convert RGB components to HSL (hue-saturation-lightness).
+     * <ul>
+     * <li>outHsl[0] is Hue [0 .. 360)</li>
+     * <li>outHsl[1] is Saturation [0...1]</li>
+     * <li>outHsl[2] is Lightness [0...1]</li>
+     * </ul>
+     *
+     * @param r      red component value [0..255]
+     * @param g      green component value [0..255]
+     * @param b      blue component value [0..255]
+     * @param outHsl 3-element array which holds the resulting HSL components
+     */
+    public static void RGBToHSL(int r, int g, int b, float[] outHsl) {
         final float rf = r / 255f;
         final float gf = g / 255f;
         final float bf = b / 255f;
+
         final float max = Math.max(rf, Math.max(gf, bf));
         final float min = Math.min(rf, Math.min(gf, bf));
         final float deltaMaxMin = max - min;
+
         float h, s;
         float l = (max + min) / 2f;
+
         if (max == min) {
             // Monochromatic
             h = s = 0f;
@@ -136,21 +233,60 @@ final class ColorUtils {
             } else {
                 h = ((rf - gf) / deltaMaxMin) + 4f;
             }
-            s =  deltaMaxMin / (1f - Math.abs(2f * l - 1f));
+
+            s = deltaMaxMin / (1f - Math.abs(2f * l - 1f));
         }
-        hsl[0] = (h * 60f) % 360f;
-        hsl[1] = s;
-        hsl[2] = l;
+
+        h = (h * 60f) % 360f;
+        if (h < 0) {
+            h += 360f;
+        }
+
+        outHsl[0] = constrain(h, 0f, 360f);
+        outHsl[1] = constrain(s, 0f, 1f);
+        outHsl[2] = constrain(l, 0f, 1f);
     }
-    static int HSLtoRGB (float[] hsl) {
+
+    /**
+     * Convert the ARGB color to its HSL (hue-saturation-lightness) components.
+     * <ul>
+     * <li>outHsl[0] is Hue [0 .. 360)</li>
+     * <li>outHsl[1] is Saturation [0...1]</li>
+     * <li>outHsl[2] is Lightness [0...1]</li>
+     * </ul>
+     *
+     * @param color  the ARGB color to convert. The alpha component is ignored
+     * @param outHsl 3-element array which holds the resulting HSL components
+     */
+    public static void colorToHSL(int color, float[] outHsl) {
+        RGBToHSL(Color.red(color), Color.green(color), Color.blue(color), outHsl);
+    }
+
+    /**
+     * Convert HSL (hue-saturation-lightness) components to a RGB color.
+     * <ul>
+     * <li>hsl[0] is Hue [0 .. 360)</li>
+     * <li>hsl[1] is Saturation [0...1]</li>
+     * <li>hsl[2] is Lightness [0...1]</li>
+     * </ul>
+     * If hsv values are out of range, they are pinned.
+     *
+     * @param hsl 3-element array which holds the input HSL components
+     * @return the resulting RGB color
+     */
+    public static int HSLToColor(float[] hsl) {
         final float h = hsl[0];
         final float s = hsl[1];
         final float l = hsl[2];
+
         final float c = (1f - Math.abs(2 * l - 1f)) * s;
         final float m = l - 0.5f * c;
         final float x = c * (1f - Math.abs((h / 60f % 2f) - 1f));
+
         final int hueSegment = (int) h / 60;
+
         int r = 0, g = 0, b = 0;
+
         switch (hueSegment) {
             case 0:
                 r = Math.round(255 * (c + m));
@@ -184,15 +320,28 @@ final class ColorUtils {
                 b = Math.round(255 * (x + m));
                 break;
         }
-        r = Math.max(0, Math.min(255, r));
-        g = Math.max(0, Math.min(255, g));
-        b = Math.max(0, Math.min(255, b));
+
+        r = constrain(r, 0, 255);
+        g = constrain(g, 0, 255);
+        b = constrain(b, 0, 255);
+
         return Color.rgb(r, g, b);
     }
-    /**
-     * Set the alpha component of {@code color} to be {@code alpha}.
-     */
-    static int modifyAlpha(int color, int alpha) {
-        return (color & 0x00ffffff) | (alpha << 24);
+
+    private static float constrain(float amount, float low, float high) {
+        return amount < low ? low : (amount > high ? high : amount);
+    }
+
+    private static int constrain(int amount, int low, int high) {
+        return amount < low ? low : (amount > high ? high : amount);
+    }
+
+    private static double[] getTempDouble3Array() {
+        double[] result = TEMP_ARRAY.get();
+        if (result == null) {
+            result = new double[3];
+            TEMP_ARRAY.set(result);
+        }
+        return result;
     }
 }

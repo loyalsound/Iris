@@ -15,10 +15,13 @@
  */
 package com.vivekpanyam.iris;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URL;
+
+import javax.imageio.ImageIO;
+
+import com.vivekpanyam.iris.Palette.Builder;
 
 public class Iris {
 
@@ -41,7 +44,7 @@ public class Iris {
      * @return A Color Hex String
      */
     public static String getColor(BufferedImage image, String defaultColor) {
-        Palette item = Palette.generate(new Bitmap(image));
+        Palette item = new Builder(new Bitmap(image)).generate();
         Palette.Swatch swatch = item.getVibrantSwatch();
 
         if (swatch == null) {

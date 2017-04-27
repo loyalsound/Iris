@@ -24,48 +24,47 @@ import java.awt.image.BufferedImage;
  * "Polyfill" for Android Bitmap using BufferedImage.
  */
 public class Bitmap {
-    private BufferedImage source;
-    public Bitmap(BufferedImage image) {
-        source = image;
-    }
+	private BufferedImage source;
 
-    public int[] getPixels() {
-        return convertTo2DUsingGetRGB(source);
-    }
+	public Bitmap(BufferedImage image) {
+		source = image;
+	}
 
-    public int getWidth() {
-        return source.getWidth();
-    }
+	public int[] getPixels() {
+		return convertTo2DUsingGetRGB(source);
+	}
 
-    public int getHeight() {
-        return source.getHeight();
-    }
+	public int getWidth() {
+		return source.getWidth();
+	}
 
-    private static int[] convertTo2DUsingGetRGB(BufferedImage image) {
-        int size = image.getWidth() * image.getHeight();
-        int[] result = new int[size];
+	public int getHeight() {
+		return source.getHeight();
+	}
 
-        for (int row = 0; row < image.getHeight(); row++) {
-            for (int col = 0; col < image.getWidth(); col++) {
-                result[row * image.getWidth() + col] = image.getRGB(col, row);
-            }
-        }
+	private static int[] convertTo2DUsingGetRGB(BufferedImage image) {
+		int size = image.getWidth() * image.getHeight();
+		int[] result = new int[size];
 
-        return result;
-    }
+		for (int row = 0; row < image.getHeight(); row++) {
+			for (int col = 0; col < image.getWidth(); col++) {
+				result[row * image.getWidth() + col] = image.getRGB(col, row);
+			}
+		}
 
-    public static Bitmap createScaledBitmap(Bitmap b, float scaleRatio) {
-        return new Bitmap(scaleImageDown(b.source, scaleRatio));
-    }
+		return result;
+	}
 
-    private static BufferedImage scaleImageDown(BufferedImage bitmap, float scaleRatio) {
+	public static Bitmap createScaledBitmap(Bitmap b, int width, int height) {
+		return new Bitmap(scaleImageDown(b.source, width, height));
+	}
 
-        BufferedImage after = new BufferedImage((int) (bitmap.getWidth() * scaleRatio),
-                (int) (bitmap.getHeight() * scaleRatio), BufferedImage.TYPE_INT_ARGB);
-        AffineTransform at = new AffineTransform();
-        at.scale(scaleRatio, scaleRatio);
-        AffineTransformOp scaleOp =
-                new AffineTransformOp(at, AffineTransformOp.TYPE_BILINEAR);
-        return scaleOp.filter(bitmap, after);
-    }
+	private static BufferedImage scaleImageDown(BufferedImage bitmap, int width, int height) {
+		float scaleRatio = width / (float)bitmap.getWidth();
+		BufferedImage after = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		AffineTransform at = new AffineTransform();
+		at.scale(scaleRatio, scaleRatio);
+		AffineTransformOp scaleOp = new AffineTransformOp(at, AffineTransformOp.TYPE_BILINEAR);
+		return scaleOp.filter(bitmap, after);
+	}
 }
